@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "TM_catalyst_framework"
+version = "0.1.0"
+description = "A Python-based framework for constructing and automating Titanium Ureate catalyst complexes"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+  { name="Dawn Mao", email="dmao1020@gmail.com" }
+]
+dependencies = [
+  "rdkit",
+  "ase",
+  "openbabel",
+  "networkx",
+  "numpy",
+]
+requires-python = ">=3.9"
+
+[project.urls]
+"Homepage" = "https://github.com/dmao1020/TM_catalyst_framework"
