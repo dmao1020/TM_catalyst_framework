@@ -1,0 +1,12 @@
+
+---
+# 🧪 6. Example Unit Test
+
+```python
+# tests/test_ligands.py
+from TM_catalyst_framework.ligands import Ligand
+
+def test_smiles_parsing():
+    lig = Ligand("ureate", "O=C(NC)NC")
+    assert lig.mol is not None
+    assert isinstance(lig.donor_atoms, list)

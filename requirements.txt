@@ -1,0 +1,6 @@
+rdkit
+ase
+openbabel
+networkx
+numpy
+pytest
