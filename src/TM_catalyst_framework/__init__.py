@@ -18,7 +18,8 @@ __email__ = "your_email@example.com"
 # Re-export key classes for convenience
 from .ligands import Ligand
 from .metal_center import MetalCenter
-from .complex_builder import ComplexBuilder
+from .complex import Complex
+from .io_utils import ORCA
 
 # Optional: define what shows up under *
-__all__ = ["Ligand", "MetalCenter", "ComplexBuilder"]
+__all__ = ["Ligand", "MetalCenter", "ComplexBuilder", "ORCA"]

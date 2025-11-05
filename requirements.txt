@@ -3,4 +3,5 @@ ase
 openbabel
 networkx
 numpy
+psi4
 pytest

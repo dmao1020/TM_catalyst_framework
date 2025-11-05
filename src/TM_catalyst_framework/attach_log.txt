@@ -1,0 +1,63 @@
+2025-11-03 10:25:53,512 | ERROR | load_template failed: name 'load_ti_template_sdf' is not defined
+Traceback (most recent call last):
+  File "/var/folders/4g/_4b7gwg52572r3yvvt5619t80000gn/T/ipykernel_93611/1497850502.py", line 27, in safe_run
+    return func(*args, **kwargs)
+  File "/var/folders/4g/_4b7gwg52572r3yvvt5619t80000gn/T/ipykernel_93611/1497850502.py", line 36, in load_template
+    mol = template = load_ti_template_sdf(template_sdf)
+                     ^^^^^^^^^^^^^^^^^^^^
+NameError: name 'load_ti_template_sdf' is not defined
+
+2025-11-03 10:25:55,817 | ERROR | load_template failed: name 'load_ti_template_sdf' is not defined
+Traceback (most recent call last):
+  File "<ipython-input-2-57fb3a08079b>", line 27, in safe_run
+    return func(*args, **kwargs)
+  File "<ipython-input-2-57fb3a08079b>", line 36, in load_template
+    mol = template = load_ti_template_sdf(template_sdf)
+                     ^^^^^^^^^^^^^^^^^^^^
+NameError: name 'load_ti_template_sdf' is not defined
+
+2025-11-03 10:26:02,234 | ERROR | load_template failed: name 'load_ti_template_sdf' is not defined
+Traceback (most recent call last):
+  File "<ipython-input-1-57fb3a08079b>", line 27, in safe_run
+    return func(*args, **kwargs)
+  File "<ipython-input-1-57fb3a08079b>", line 36, in load_template
+    mol = template = load_ti_template_sdf(template_sdf)
+                     ^^^^^^^^^^^^^^^^^^^^
+NameError: name 'load_ti_template_sdf' is not defined
+
+2025-11-03 10:26:27,809 | ERROR | load_template failed: name 'load_ti_template_sdf' is not defined
+Traceback (most recent call last):
+  File "<ipython-input-4-12035102efde>", line 5, in safe_run
+    return func(*args, **kwargs)
+  File "<ipython-input-4-12035102efde>", line 14, in load_template
+    mol = template = load_ti_template_sdf(template_sdf)
+                     ^^^^^^^^^^^^^^^^^^^^
+NameError: name 'load_ti_template_sdf' is not defined
+
+2025-11-03 10:27:25,405 | ERROR | load_template failed: name 'load_ti_template_sdf' is not defined
+Traceback (most recent call last):
+  File "<ipython-input-5-b05e8a3c0106>", line 5, in safe_run
+    return func(*args, **kwargs)
+  File "<ipython-input-5-b05e8a3c0106>", line 14, in load_template
+    mol = load_ti_template_sdf(template_sdf)
+          ^^^^^^^^^^^^^^^^^^^^
+NameError: name 'load_ti_template_sdf' is not defined
+
+2025-11-03 10:28:35,173 | ERROR | embed_and_optimize failed: Can't kekulize mol.  Unkekulized atoms: 34 36 37 38 39
+Traceback (most recent call last):
+  File "<ipython-input-8-b05e8a3c0106>", line 5, in safe_run
+    return func(*args, **kwargs)
+  File "<ipython-input-9-a3b9b1faeeb5>", line 70, in embed_and_optimize
+    if AllChem.EmbedMolecule(mol, randomSeed=42, useExpTorsionAnglePrefs=True, useBasicKnowledge=True) != 0:
+       ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rdkit.Chem.rdchem.KekulizeException: Can't kekulize mol.  Unkekulized atoms: 34 36 37 38 39
+
+2025-11-03 10:29:34,095 | ERROR | embed_and_optimize failed: Can't kekulize mol.  Unkekulized atoms: 34 36 37 38 39
+Traceback (most recent call last):
+  File "<ipython-input-8-b05e8a3c0106>", line 5, in safe_run
+    return func(*args, **kwargs)
+  File "<ipython-input-12-ff062b2266d2>", line 19, in embed_and_optimize
+    if AllChem.EmbedMolecule(mol, randomSeed=42, useExpTorsionAnglePrefs=True, useBasicKnowledge=True) != 0:
+       ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+rdkit.Chem.rdchem.KekulizeException: Can't kekulize mol.  Unkekulized atoms: 34 36 37 38 39
+
