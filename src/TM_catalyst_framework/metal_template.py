@@ -16,6 +16,7 @@ from importlib import resources
 from openbabel import pybel
 
 def load_ti_template_sdf(template_name="ti_ureate_tetra_template.sdf", 
+                         template_dir = "TM_catalyst_framework.template",
                          removeHs_statement = False,
                          package: str = "rdkit"
                          ) -> Chem.Mol:
@@ -24,8 +25,8 @@ def load_ti_template_sdf(template_name="ti_ureate_tetra_template.sdf",
     Returns an RDKit Mol object with hydrogens preserved.
     """
     # Get the filesystem path of the SDF file inside the package
-    print(resources.files("TM_catalyst_framework.template").joinpath("u1_d1_iso1.sdf").is_file())
-    sdf_path = resources.files("TM_catalyst_framework.template").joinpath(template_name).__fspath__()
+    print(resources.files(template_dir).joinpath(template_name).is_file())
+    sdf_path = resources.files(template_dir).joinpath(template_name).__fspath__()
 
     if package == "rdkit":
         # RDKit reads SDF files from path
