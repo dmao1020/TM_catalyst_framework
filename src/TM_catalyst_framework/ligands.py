@@ -11,6 +11,51 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 from openbabel import pybel
 import numpy as np
+
+import itertools
+from itertools import product
+
+
+def permutations_with_repetition(iterable, length):
+    """
+    Generates all permutations with repetition of a given iterable.
+
+    Args:
+        iterable: The input iterable (e.g., a list, string, or tuple).
+        length: The desired length of each permutation.
+
+    Returns:
+        An iterator yielding tuples representing the permutations.
+    """
+    return product(iterable, repeat=length)
+
+def octahedral_N1N2_dictionary(iso_num):
+    elements = ['N1', 'N2']
+    perm_length = 2
+
+    if iso_num in [1, 2]:
+        N1_N2_combo = itertools.combinations_with_replacement(elements, 2)
+    elif iso_num in range(3, 9):
+        N1_N2_combo = permutations_with_repetition(elements, perm_length)
+
+    print (f"N1_N2_combo: {N1_N2_combo}")
+    for p in N1_N2_combo:
+        print (p)
+        Br, I = p[0], p[1]
+        N1N2_map = {}
+        if Br == "N1":
+            N1N2_map = {"N1":[35], "N2":[9]}
+        elif Br == "N2":
+            N1N2_map = {"N1":[9], "N2":[35]}
+        if I == "N1":
+            N1N2_map["N1"].append(53)
+            N1N2_map["N2"].append(17)
+        elif I == "N2":
+            N1N2_map["N1"].append(17)
+            N1N2_map["N2"].append(53)
+        print (f"N1N2_map:{N1N2_map}")
+    return N1N2_map
+
 class Ligand:
     def __init__(
             self, 

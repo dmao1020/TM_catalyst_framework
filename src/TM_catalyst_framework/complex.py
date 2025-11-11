@@ -13,10 +13,11 @@ import sys
 
 from TM_catalyst_framework.metal_template import load_ti_template_sdf
 d_electrons_dict = {
-            "Sc": 1, "Ti": 22, "V": 3, "Cr": 5, "Mn": 5,
+            "Sc": 1, "Ti": 2, "V": 3, "Cr": 5, "Mn": 5,
             "Fe": 6, "Co": 7, "Ni": 8, "Cu": 10, "Zn": 10,
             "Zr": 2, "Nb": 3, "Mo": 6, "Hf": 2, "Ta": 3, "W": 6
         }
+metal_num_dict = {"Ti": 22, }
 class Complex:
     def __init__(self,
                  metal_center: str,
@@ -125,11 +126,6 @@ class Complex:
         
         return attach_atom, connect_atom
 
-
-
-
-
-    
     def find_fragment_attachment_point(self, frag):
         attach_atom = None
         for atom in frag:
@@ -148,7 +144,49 @@ class Complex:
             raise ValueError("Fragment * has no neighbor")
         
         return attach_atom, connect_atom
-    
+    def run_opt(self, 
+                constraints,
+                mol,
+                ):
+        # === Suppress logs ===
+        cerr_fd = sys.stderr.fileno()
+        devnull = os.open('/dev/null', os.O_WRONLY)
+        original_cerr = os.dup(cerr_fd)
+        os.dup2(devnull, cerr_fd)
+
+        try:
+            ff = ob.OBForceField.FindForceField(self.force_field)
+            if not ff.Setup(mol.OBMol, constraints):
+                raise ValueError("Setup failed")
+            
+            print(f"Initial energy: {ff.Energy():.2f} kcal/mol")
+            # ff.ConjugateGradients(force_field_steps)
+            ff.ConjugateGradients(self.force_field_steps) 
+            print(f"Final energy: {ff.Energy():.2f} kcal/mol")
+            
+            ff.GetCoordinates(mol.OBMol)
+        finally:
+            os.dup2(original_cerr, cerr_fd)
+            os.close(original_cerr)
+            os.close(devnull)
+
+    def constraint_optimization(self, constraints, mol):
+        constraints.Clear()
+        metal_atomic_num = metal_num_dict[self.metal_center]
+        metal_nbr_atom_ls = []
+        for atom in mol:
+            if atom.OBAtom.GetAtomicNum() == metal_atomic_num:  # * = dummy, 9 = fluorine
+                metal_atom = atom
+                # Find neighbor (the atom that was bonded to *)
+                for nbr in pybel.ob.OBAtomAtomIter(atom.OBAtom):
+                    nbr_atom = mol.atoms[nbr.GetIdx() - 1]
+                    nbr_idx = nbr_atom.idx
+                    # print (f"Add atom constraint to atom with nbr_idx: {nbr_idx}")
+                    constraints.AddAtomConstraint(nbr_idx)
+
+        self.run_opt(constraints, mol)
+        return constraints, mol
+
     def add_fragments(self,
                       template_sdf: str,
                       fragment_smiles_dict: dict,
@@ -157,6 +195,8 @@ class Complex:
                       force_field: str = "mmff94", # "uff" or "mmff94", for geometry optimization
                       force_field_steps: int = 2000, # Number of optimization steps
                       ):
+        self.force_field = force_field
+        self.force_field_steps = force_field_steps
         """Build 3D complex geometry by adding substituents
         on the ligands coordinated to the metal center.
         1. Identify dummy atoms in template and fragments.
@@ -257,39 +297,7 @@ class Complex:
                     # === Freeze atoms attaching the metal center ===
                     
                     constraints.Clear()
-                    metal_atomic_num = 22# d_electrons_dict[self.metal_center]
-                    metal_nbr_atom_ls = []
-                    for atom in template:
-                        if atom.OBAtom.GetAtomicNum() == metal_atomic_num:  # * = dummy, 9 = fluorine
-                            metal_atom = atom
-                            # Find neighbor (the atom that was bonded to *)
-                            for nbr in pybel.ob.OBAtomAtomIter(atom.OBAtom):
-                                nbr_atom = template.atoms[nbr.GetIdx() - 1]
-                                nbr_idx = nbr_atom.idx
-                                print (f"Add atom constraint to atom with nbr_idx: {nbr_idx}")
-                                constraints.AddAtomConstraint(nbr_idx)
-
-                    # === Suppress logs ===
-                    cerr_fd = sys.stderr.fileno()
-                    devnull = os.open('/dev/null', os.O_WRONLY)
-                    original_cerr = os.dup(cerr_fd)
-                    os.dup2(devnull, cerr_fd)
-
-                    try:
-                        ff = ob.OBForceField.FindForceField(force_field)
-                        if not ff.Setup(template.OBMol, constraints):
-                            raise ValueError("Setup failed")
-                        
-                        print(f"Initial energy: {ff.Energy():.2f} kcal/mol")
-                        # ff.ConjugateGradients(force_field_steps)
-                        ff.ConjugateGradients(force_field_steps) 
-                        print(f"Final energy: {ff.Energy():.2f} kcal/mol")
-                        
-                        ff.GetCoordinates(template.OBMol)
-                    finally:
-                        os.dup2(original_cerr, cerr_fd)
-                        os.close(original_cerr)
-                        os.close(devnull)
+                    constraints, template = self.constraint_optimization(constraints, template)
                 
                 if Ni == "N2": # nitrogen with R2 and R3
                     for r_idx in range(2, 4):
@@ -331,40 +339,7 @@ class Complex:
 
                         # === Freeze atoms attaching the metal center ===
                         constraints.Clear()
-
-                        metal_atomic_num = 22# d_electrons_dict[self.metal_center]
-                        metal_nbr_atom_ls = []
-                        for atom in template:
-                            if atom.OBAtom.GetAtomicNum() == metal_atomic_num:  # * = dummy, 9 = fluorine
-                                metal_atom = atom
-                                # Find neighbor (the atom that was bonded to *)
-                                for nbr in pybel.ob.OBAtomAtomIter(atom.OBAtom):
-                                    nbr_atom = template.atoms[nbr.GetIdx() - 1]
-                                    nbr_idx = nbr_atom.idx
-                                    print (f"Add atom constraint to atom with nbr_idx: {nbr_idx}")
-                                    constraints.AddAtomConstraint(nbr_idx)
-
-                        # === Suppress logs ===
-                        cerr_fd = sys.stderr.fileno()
-                        devnull = os.open('/dev/null', os.O_WRONLY)
-                        original_cerr = os.dup(cerr_fd)
-                        os.dup2(devnull, cerr_fd)
-
-                        try:
-                            ff = ob.OBForceField.FindForceField(force_field)
-                            if not ff.Setup(template.OBMol, constraints):
-                                raise ValueError("Setup failed")
-                            
-                            print(f"Initial energy: {ff.Energy():.2f} kcal/mol")
-                            # ff.ConjugateGradients(force_field_steps)
-                            ff.ConjugateGradients(force_field_steps) 
-                            print(f"Final energy: {ff.Energy():.2f} kcal/mol")
-                            
-                            ff.GetCoordinates(template.OBMol)
-                        finally:
-                            os.dup2(original_cerr, cerr_fd)
-                            os.close(original_cerr)
-                            os.close(devnull)
+                        constraints, template = self.constraint_optimization(constraints, template)
 
         # --------------------------------------------------
         # Replace dummy atoms to nitrogen
@@ -389,7 +364,7 @@ class Complex:
                 for nbr in pybel.ob.OBAtomAtomIter(atom.OBAtom):
                     nbr_atom = template.atoms[nbr.GetIdx() - 1]
                     nbr_idx = nbr_atom.idx
-                    print (f"Add atom constraint to atom with nbr_idx: {nbr_idx}")
+                    # print (f"Add atom constraint to atom with nbr_idx: {nbr_idx}")
                     constraints.AddAtomConstraint(nbr_idx)
 
         # === Suppress logs ===
@@ -413,6 +388,10 @@ class Complex:
             os.dup2(original_cerr, cerr_fd)
             os.close(original_cerr)
             os.close(devnull)
+        
+        # Final geometry optimization with FF without the constraints
+        # constraints.Clear()
+        # template.make3D(forcefield=force_field, steps=force_field_steps)
         # --------------------------------------------------
         # 6. Save
         # --------------------------------------------------
@@ -421,60 +400,88 @@ class Complex:
             
         print(f"Success! Saved to {output_sdf}")
 
-            
-        #TODO
-        # for substituent_label, fragment_smiles in fragment_smiles_dict.items():
-        #     dummy_atomic_num = substituent_dummy_map.get(substituent_label)
-        #     # --------------------------------------------------
-        #     # 2. Replace dummy F with fragment
-        #     # --------------------------------------------------
-        #     # Find dummy and anchor in template
-        #     dummy_atom, anchor_atom = self.find_dummy_and_anchor(template, dummy_atomic_num)
-        #     anchor_idx = anchor_atom.idx  # 1-based Open Babel index
-
-        #     # --------------------------------------------------
-        #     # 3. Load fragment and find attachment point
-        #     # --------------------------------------------------
-        #     # Load fragment and find attachment point
-        #     frag = pybel.readstring("smi", fragment_smiles)
-        #     attach_atom, connect_atom = self.find_fragment_attachment_point(frag)
-        #     connect_idx = connect_atom.GetIdx()  # 1-based
-
-        #     # --------------------------------------------------
-        #     # 4. Delete dummy, merge, and ADD BOND
-        #     # --------------------------------------------------
-        #     # Delete dummy from template and fragment
-        #     template.OBMol.DeleteAtom(dummy_atom.OBAtom)
-
-        #     # Merge fragment into template
-        #     template.OBMol += frag.OBMol
-
-        #     # Now add bond: anchor (in template) → connect_atom (in fragment)
-        #     # After merge, fragment atoms start at: mol.OBMol.NumAtoms() - frag.OBMol.NumAtoms() + 1
-        #     frag_start_idx = template.OBMol.NumAtoms() - frag.OBMol.NumAtoms() + 1
-        #     connect_idx_in_merged = frag_start_idx + connect_idx - 1
-
-        #     # Add bond (1-based indices)
-        #     template.OBMol.AddBond(anchor_idx, connect_idx_in_merged, 1)  # 1 = single bond
-
-        #     #cleanup: check if there's any remaining * atoms and remove them
-        #     delete_indices = []
-        #     for atom in template:
-        #         print (f"New molecule Atom idx: {atom.idx}, atomic num: {atom.OBAtom.GetAtomicNum()}")
-        #         if atom.OBAtom.GetAtomicNum() == 0:  # *
-        #             print (f"Found leftover * at index {atom.idx}, marking for deletion")
-        #             template.OBMol.DeleteAtom(atom.OBAtom)
-        #     print (f"Fragment attachment at index {attach_atom.idx}")
+    def add_ligand_bond(self,
+                        mol,
+                        ligand,
+                        connect_idx,
+                        anchor_idx,
+                        dummy_atom,
+                        ):
+        dummy_coord = dummy_atom.OBAtom.GetVector()
+        mol.OBMol.DeleteAtom(dummy_atom.OBAtom)
         
+        # Now add bond: anchor (in template) → connect_atom (in fragment)
+        # After merge, fragment atoms start at: mol.OBMol.NumAtoms() - frag.OBMol.NumAtoms() + 1
+        frag_start_idx = mol.OBMol.NumAtoms() - ligand.OBMol.NumAtoms() + 1
+
+        # connect atom index
+        connect_idx_in_merged = frag_start_idx + connect_idx - 1
+        # Add M-O bond (1-based indices)
+        mol.OBMol.AddBond(anchor_idx, connect_idx_in_merged, 1)  # 1 = single bond
+        connect_atom = mol.OBMol.GetAtom(connect_idx_in_merged)
+        connect_atom.SetVector(dummy_coord)
+        return mol
+
+    def attach_bidentate_ligand(self,
+                                constraints, 
+                                mol,
+                                dummyO_atomic_num, 
+                                dummyN_atomic_num
+                                ):
+        # --------------------------------------------------
+        # 3.1. Add the first ligand
+        # --------------------------------------------------
+        # Merge fragment into template
+        mol.OBMol += self.ligand.OBMol
+
+        # Find dummy atom representing oxygen on complex template
+        dummy_O_atom, anchor_atom = self.find_dummy_and_anchor(mol, dummyO_atomic_num)
+        # print (dummy_O_atom)
+        # Get dummy coordinate
         
+        # Find dummy atom representing nitrogen on complex template
+        dummy_N_atom, anchor_atom = self.find_dummy_and_anchor(mol, dummyN_atomic_num)
+        # print (dummy_O_atom)
+        # Get dummy coordinate
         
+        ######## Ligand ########
+        # find O dummy
+        dummy_O_label = "O1"
+        attach_O, connect_O = self.find_ligand_attachement_point(self.ligand, 
+                                connect_label=dummy_O_label)
+        connect_O_idx = connect_O.GetIdx()  # 1-based
+
+        # find Ni dummy
+        dummy_N_label = self.connect_N_dict[dummyN_atomic_num]
+        attach_N, connect_N = self.find_ligand_attachement_point(self.ligand, 
+                                connect_label=dummy_N_label)
+        connect_N_idx = connect_N.GetIdx()  # 1-based
+
+        mol = self.add_ligand_bond(mol, self.ligand,
+                                connect_O_idx, anchor_atom.idx, dummy_O_atom)
+        
+        mol = self.add_ligand_bond(mol, self.ligand,
+                                connect_N_idx, anchor_atom.idx, dummy_N_atom)
+        
+        for atom in mol:
+            # print (f"New molecule Atom idx: {atom.idx}, atomic num: {atom.OBAtom.GetAtomicNum()}")
+            if atom.OBAtom.GetAtomicNum() == 0:  # *
+                print (f"Found leftover * at index {atom.idx}, marking for deletion")
+                mol.OBMol.DeleteAtom(atom.OBAtom)
+        constraints, mol = self.constraint_optimization(constraints, mol)
+        return constraints, mol
+
+
     def add_ligands(self,
                     template_sdf: str,
                     ligand_smiles: str,
                     output_sdf: str,
                     force_field: str = "mmff94",
                     force_field_steps: int = 2000,
+                    connect_N_dict: dict = {35: "N1", 53: "N1"},
                     ):
+        self.force_field = force_field
+        self.force_field_steps = force_field_steps
         """Build 3D complex geometry by adding ligand to the metal center.
 
         Args:
@@ -495,7 +502,7 @@ class Complex:
         Returns:
             _type_: _description_
         """
-
+        self.connect_N_dict = connect_N_dict
         # Dictionary that maps the dummy atoms representing 
         # the ligand-coordination postion in the template
         metal_coord_dummy_map = {
@@ -513,334 +520,117 @@ class Complex:
 
         template = load_ti_template_sdf(template_sdf, 
                                         package = "openbabel", 
-                                        template_dir = "TM_catalyst_framework.metal_center_template")
+                                        template_dir = "TM_catalyst_framework.template")
         if template is None:
             raise ValueError("Could not read the template SDF file.")
         
-        template.make3D(forcefield=force_field, steps=force_field_steps)
+        # template.make3D(forcefield=force_field, steps=force_field_steps)
         skip_count = 0
         ligand = pybel.readstring("smi", ligand_smiles)
+        ligand.make3D()
+        self.ligand = ligand
         dummy_atom_dict = {}
 
         # --------------------------------------------------
-        # 2. Check if template contains dummy atom
-        # --------------------------------------------------
-        for dummy_atom_label, dummy_atomic_num in metal_coord_dummy_map.items():
-            
-            dummy_atom, anchor_atom = self.find_dummy_and_anchor(template, dummy_atomic_num)
-            # The template doesn't contain the dummy atom, skip and find the next one
-            if dummy_atom == None:
-                skip_count += 1
-                continue 
-            anchor_idx = anchor_atom.idx # 1-based Open Babel index
-            dummy_atom_dict[dummy_atom_label] = [dummy_atom, anchor_atom, anchor_idx]
-        print (f"Dummy atoms found from template: {dummy_atom_dict.keys()}")
-
-        # check number of ligands (mono- or bis-ligated)
-        num_ligands = int(template_sdf[1])
-        print (f"There are {num_ligands} ureate ligands")
-
-        # --------------------------------------------------
-        # 3. Coordinate 1 or 2 ligands
+        # 2. Coordinate 1 or 2 ligands
         # --------------------------------------------------
         if "d2d2" in template_sdf:
-            # --------------------------------------------------
-            # 3b) Coordinate bidentate ligand
-            # --------------------------------------------------
-            # print (f"Bidentate ligand N{i}O{i}")
-
-            # find Oi dummy
-            dummy_O1_label = "O1"
-            attach_O1, connect_O1 = self.find_ligand_attachement_point(ligand, 
-                                    connect_label=dummy_O1_label)
-            connect_O1_idx = connect_O1.GetIdx()  # 1-based
-
-            # find Ni dummy
-            dummy_N1_label = "N1"
-            attach_N1, connect_N1 = self.find_ligand_attachement_point(ligand, 
-                                    connect_label=dummy_N1_label)
-            connect_N1_idx = connect_N1.GetIdx()  # 1-based
-            
-            # --------------------------------------------------
-            # 3b.2. Add the first bidentate ligand
-            # --------------------------------------------------
-            # Merge fragment into template
-            template.OBMol += ligand.OBMol
-
-            # Delete dummy O from template and fragment
-            dummy_atom, anchor_atom, anchor_O1_idx = dummy_atom_dict[dummy_O1_label]
-            template.OBMol.DeleteAtom(dummy_atom.OBAtom)
-
-            # Now add bond: anchor (in template) → connect_atom (in fragment)
-            # After merge, fragment atoms start at: mol.OBMol.NumAtoms() - frag.OBMol.NumAtoms() + 1
-            frag_start_idx = template.OBMol.NumAtoms() - ligand.OBMol.NumAtoms() + 1
-
-            # O-index
-            connect_O1_idx_in_merged = frag_start_idx + connect_O1_idx - 1
-            # Add M-O bond (1-based indices)
-            template.OBMol.AddBond(anchor_O1_idx, connect_O1_idx_in_merged, 1)  # 1 = single bond
-
-            # template.make3D(forcefield=force_field, steps=force_field_steps)
-
-            # Delete dummy N from template and fragment
-            dummy_atom, anchor_atom, anchor_N1_idx = dummy_atom_dict[dummy_N1_label]
-            template.OBMol.DeleteAtom(dummy_atom.OBAtom)
-
-            frag_start_idx = template.OBMol.NumAtoms() - ligand.OBMol.NumAtoms() + 1
-            # Now add bond: anchor (in template) → connect_atom (in fragment)
-            # After merge, fragment atoms start at: mol.OBMol.NumAtoms() - frag.OBMol.NumAtoms() + 1
-            # N-index
-            connect_N1_idx_in_merged = frag_start_idx + connect_N1_idx - 1
-            # Add M-O bond (1-based indices)
-            template.OBMol.AddBond(anchor_N1_idx, connect_N1_idx_in_merged, 1)  # 1 = single bond
-
-            # --------------------------------------------------
-            # 3b.2. Add the second bidentate ligand
-            # --------------------------------------------------
-            # find Oi dummy
-            dummy_O2_label = "O2"
-            attach_O2, connect_O2 = self.find_ligand_attachement_point(ligand, 
-                                    connect_label=dummy_O2_label)
-            connect_O2_idx = connect_O2.GetIdx()  # 1-based
-
-            # find Ni dummy
-            dummy_N2_label = "N2"
-            attach_N2, connect_N2 = self.find_ligand_attachement_point(ligand, 
-                                    connect_label=dummy_N2_label)
-            connect_N2_idx = connect_N2.GetIdx()  # 1-based
-            
-            # Merge fragment into template
-            template.OBMol += ligand.OBMol
-
-            # Delete dummy O from template and fragment
-            dummy_atom, anchor_atom, anchor_O2_idx = dummy_atom_dict[dummy_O2_label]
-            template.OBMol.DeleteAtom(dummy_atom.OBAtom)
-
-            # Now add bond: anchor (in template) → connect_atom (in fragment)
-            # After merge, fragment atoms start at: mol.OBMol.NumAtoms() - frag.OBMol.NumAtoms() + 1
-            frag_start_idx = template.OBMol.NumAtoms() - ligand.OBMol.NumAtoms() + 1
-
-            # O-index
-            connect_O2_idx_in_merged = frag_start_idx + connect_O2_idx - 1
-            # Add M-O bond (1-based indices)
-            template.OBMol.AddBond(anchor_O2_idx, connect_O2_idx_in_merged, 1)  # 1 = single bond
-
-            # template.make3D(forcefield=force_field, steps=force_field_steps)
-
-            # Delete dummy N from template and fragment
-            dummy_atom, anchor_atom, anchor_N2_idx = dummy_atom_dict[dummy_N2_label]
-            template.OBMol.DeleteAtom(dummy_atom.OBAtom)
-
-            frag_start_idx = template.OBMol.NumAtoms() - ligand.OBMol.NumAtoms() + 1
-            # Now add bond: anchor (in template) → connect_atom (in fragment)
-            # After merge, fragment atoms start at: mol.OBMol.NumAtoms() - frag.OBMol.NumAtoms() + 1
-            # N-index
-            connect_N2_idx_in_merged = frag_start_idx + connect_N2_idx - 1
-            # Add M-O bond (1-based indices)
-            template.OBMol.AddBond(anchor_N2_idx, connect_N2_idx_in_merged, 1)  # 1 = single bond
-
-            template.make3D(forcefield=force_field, steps=force_field_steps)
-            # ================================ angle constraints ================================#
             constraints = ob.OBFFConstraints()
-            constraints.AddAngleConstraint(frag_start_idx + connect_N1_idx - 1, 
-                                           anchor_N2_idx, 
-                                           frag_start_idx + connect_N2_idx - 1, 
-                                           180.0)
-            constraints.AddAngleConstraint(frag_start_idx + connect_O1_idx - 1, 
-                                           anchor_N2_idx, 
-                                           frag_start_idx + connect_O2_idx - 1, 
-                                           90.0)
-            
-            constraints.AddAngleConstraint(frag_start_idx + connect_O1_idx - 1, 
-                                           anchor_N2_idx, 
-                                           frag_start_idx + connect_N1_idx - 1, 
-                                           90.0)
-            constraints.AddAngleConstraint(frag_start_idx + connect_O1_idx - 1, 
-                                           anchor_N2_idx, 
-                                           frag_start_idx + connect_N2_idx - 1, 
-                                           90.0)
-            # Setup the force field with the constraints
-            forcefield = ob.OBForceField.FindForceField(force_field)
-            forcefield.Setup(template.OBMol, constraints)
-            forcefield.SetConstraints(constraints)
+            # --------------------------------------------------
+            # 2a.1. Add the first ligand
+            # --------------------------------------------------
+            dummyO_atomic_num, dummyN_atomic_num = 9, 35
+            constraints, template = self.attach_bidentate_ligand(constraints, 
+                                        template,
+                                        dummyO_atomic_num, 
+                                        dummyN_atomic_num
+                                        )
 
-            # Do a 500 steps conjugate gradient minimiazation
-            # and save the coordinates to mol.
-            forcefield.ConjugateGradients(500)
-            forcefield.GetCoordinates(template.OBMol)
-
-            # template.make3D(forcefield=forcefield, steps=force_field_steps)
-
-            # Do a 500 steps conjugate gradient minimiazation
-            # and save the coordinates to mol.
-            # forcefield.ConjugateGradients(force_field_steps)
-
+            # --------------------------------------------------
+            # 2a.2. Add the second ligand
+            # --------------------------------------------------
+            # Merge fragment into template
+            dummyO_atomic_num, dummyN_atomic_num = 17, 53
+            constraints, template = self.attach_bidentate_ligand(constraints, 
+                                        template,
+                                        dummyO_atomic_num, 
+                                        dummyN_atomic_num
+                                        )
         else:
+            # template.make3D(forcefield=force_field, steps=force_field_steps)
+            # constraints = ob.OBFFConstraints()
+            # --------------------------------------------------
+            # 2b. Check if template contains dummy atom
+            # --------------------------------------------------
+            for dummy_atom_label, dummy_atomic_num in metal_coord_dummy_map.items():
+                dummy_atom, anchor_atom = self.find_dummy_and_anchor(template, dummy_atomic_num)
+                # The template doesn't contain the dummy atom, skip and find the next one
+                if dummy_atom == None:
+                    skip_count += 1
+                    continue 
+                anchor_idx = anchor_atom.idx # 1-based Open Babel index
+                dummy_atom_dict[dummy_atom_label] = [dummy_atom, anchor_atom, anchor_idx]
+            print (f"Dummy atoms found from template: {dummy_atom_dict.keys()}")
+            constraints = ob.OBFFConstraints()
+            # constraints, template = self.constraint_optimization(constraints, template)
             for i in range(1,3):
                 if f"O{i}" in dummy_atom_dict.keys():
                     if f"N{i}" in dummy_atom_dict.keys():
                         # --------------------------------------------------
-                        # 3b) Coordinate bidentate ligand
+                        # 2b.1. Coordinate bidentate ligand
                         # --------------------------------------------------
-                        print (f"Bidentate ligand N{i}O{i}")
+                        print (f"Monodentate ligand N{i}O{i}")
+                        dummyO_atomic_num = metal_coord_dummy_map["O%s"%(i)]
+                        dummyN_atomic_num = metal_coord_dummy_map["N%s"%(i)]
+                        constraints, template = self.attach_bidentate_ligand(
+                                                    constraints, 
+                                                    template,
+                                                    dummyO_atomic_num, 
+                                                    dummyN_atomic_num
+                                                    )
+                    else:
+                        # --------------------------------------------------
+                        # 2b.2. Coordinate monodentate ligand
+                        # --------------------------------------------------
+                        dummy_O_label = "O%s"%(i)
+                        print (f"Monodentate ligand N{i}O{i}")
+                        # Merge fragment into template
+                        template.OBMol += ligand.OBMol
 
-                        # find Oi dummy
-                        dummy_O_label = f"O{i}"
+                        # Find F dummy atom on complex template
+                        dummy_atomic_num = metal_coord_dummy_map[dummy_O_label]
+                        dummy_O_atom, anchor_atom = self.find_dummy_and_anchor(template, dummy_atomic_num)
+                        
+                        ######## Ligand ########
+                        # find O dummy
                         attach_O, connect_O = self.find_ligand_attachement_point(ligand, 
                                                 connect_label=dummy_O_label)
                         connect_O_idx = connect_O.GetIdx()  # 1-based
 
-                        # find Ni dummy
-                        dummy_N_label = f"N{i}"
-                        attach_N, connect_N = self.find_ligand_attachement_point(ligand, 
-                                                connect_label=dummy_N_label)
-                        connect_N_idx = connect_N.GetIdx()  # 1-based
+                        template = self.add_ligand_bond(template, ligand,
+                                            connect_O_idx, anchor_atom.idx, dummy_O_atom)
                         
-                        # --------------------------------------------------
-                        # 3b.2. Delete dummy, merge, and ADD BOND
-                        # --------------------------------------------------
-                        # Merge fragment into template
-                        template.OBMol += ligand.OBMol
-
-                        # Delete dummy O from template and fragment
-                        dummy_atom, anchor_atom, anchor_O_idx = dummy_atom_dict[dummy_O_label]
-                        template.OBMol.DeleteAtom(dummy_atom.OBAtom)
-
-                        # Now add bond: anchor (in template) → connect_atom (in fragment)
-                        # After merge, fragment atoms start at: mol.OBMol.NumAtoms() - frag.OBMol.NumAtoms() + 1
-                        frag_start_idx = template.OBMol.NumAtoms() - ligand.OBMol.NumAtoms() + 1
-
-                        # O-index
-                        connect_O_idx_in_merged = frag_start_idx + connect_O_idx - 1
-                        # Add M-O bond (1-based indices)
-                        template.OBMol.AddBond(anchor_O_idx, connect_O_idx_in_merged, 1)  # 1 = single bond
-
-                        # template.make3D(forcefield=force_field, steps=force_field_steps)
-
-                        # Delete dummy N from template and fragment
-                        dummy_atom, anchor_atom, anchor_N_idx = dummy_atom_dict[dummy_N_label]
-                        template.OBMol.DeleteAtom(dummy_atom.OBAtom)
-
-                        # Now add bond: anchor (in template) → connect_atom (in fragment)
-                        # After merge, fragment atoms start at: mol.OBMol.NumAtoms() - frag.OBMol.NumAtoms() + 1
-                        # N-index
-                        connect_N_idx_in_merged = frag_start_idx + connect_N_idx - 1
-                        # Add M-O bond (1-based indices)
-                        template.OBMol.AddBond(anchor_N_idx, connect_N_idx_in_merged, 1)  # 1 = single bond
-                    else:
-                        # --------------------------------------------------
-                        # 3b) Coordinate monodentate ligand
-                        # --------------------------------------------------
-                        print (f"Monodentate O{i}")
-                        dummy_atom_label = f"O{i}"
-                        attach_atom, connect_atom = self.find_ligand_attachement_point(ligand, 
-                                                connect_label=dummy_atom_label)
-                        connect_idx = connect_atom.GetIdx()  # 1-based
                         
-                        # --------------------------------------------------
-                        # 3b.1. Delete dummy, merge, and ADD BOND
-                        # --------------------------------------------------
-                        # Delete dummy from template and fragment
-                        dummy_atom, anchor_atom, anchor_idx = dummy_atom_dict[dummy_atom_label]
-                        template.OBMol.DeleteAtom(dummy_atom.OBAtom)
-
-                        # Merge fragment into template
-                        template.OBMol += ligand.OBMol
-
-                        # Now add bond: anchor (in template) → connect_atom (in fragment)
-                        # After merge, fragment atoms start at: mol.OBMol.NumAtoms() - frag.OBMol.NumAtoms() + 1
-                        frag_start_idx = template.OBMol.NumAtoms() - ligand.OBMol.NumAtoms() + 1
-                        connect_idx_in_merged = frag_start_idx + connect_idx - 1
-
-                        # Add bond (1-based indices)
-                        template.OBMol.AddBond(anchor_idx, connect_idx_in_merged, 1)  # 1 = single bond
+                        for atom in template:
+                            # print (f"New molecule Atom idx: {atom.idx}, atomic num: {atom.OBAtom.GetAtomicNum()}")
+                            if atom.OBAtom.GetAtomicNum() == 0:  # *
+                                print (f"Found leftover * at index {atom.idx}, marking for deletion")
+                                template.OBMol.DeleteAtom(atom.OBAtom)
+                        constraints, template = self.constraint_optimization(constraints, template)
         
         # --------------------------------------------------
-        # 5. Clean up: get rid of dummies * attached to ligand(s)
+        # 3. Final geometry optimization with FF (no constraints)
         # --------------------------------------------------
-        for atom in template:
-            print (f"New molecule Atom idx: {atom.idx}, atomic num: {atom.OBAtom.GetAtomicNum()}")
-            if atom.OBAtom.GetAtomicNum() == 0:  # *
-                print (f"Found leftover * at index {atom.idx}, marking for deletion")
-                template.OBMol.DeleteAtom(atom.OBAtom)
-    
+        constraints.Clear()
+        self.run_opt(constraints, template)
         # --------------------------------------------------
-        # 6. Generate 3D and optimize
-        # --------------------------------------------------
-        template.make3D(forcefield=force_field, 
-                        steps=force_field_steps)
-
-        # --------------------------------------------------
-        # 7. Save
+        # 4. Save
         # --------------------------------------------------
         template.write("sdf", output_sdf, overwrite=True)
         print(f"Success! Saved to {output_sdf}")
     
         if skip_count == 4:
             raise ValueError("No ligand is attached to the template because 0 dummy atoms were found.")
-
-                            
-        
-        
-
-        
-
-        # TODO unhash from here
-        #     # --------------------------------------------------
-        #     # 3. Load ligand fragment and find attachment point
-        #     # --------------------------------------------------
-        #     # Load fragment and find attachment point
-
-        #     attach_atom, connect_atom = self.find_ligand_attachement_point(ligand, 
-        #                                      connect_label=dummy_atom_label)
-
-        #     connect_idx = connect_atom.GetIdx()  # 1-based
-
-        #     # --------------------------------------------------
-        #     # 4. Delete dummy, merge, and ADD BOND
-        #     # --------------------------------------------------
-        #     # Delete dummy from template and fragment
-        #     template.OBMol.DeleteAtom(dummy_atom.OBAtom)
-
-        #     # Merge fragment into template
-        #     template.OBMol += ligand.OBMol
-
-        #     # Now add bond: anchor (in template) → connect_atom (in fragment)
-        #     # After merge, fragment atoms start at: mol.OBMol.NumAtoms() - frag.OBMol.NumAtoms() + 1
-        #     frag_start_idx = template.OBMol.NumAtoms() - ligand.OBMol.NumAtoms() + 1
-        #     connect_idx_in_merged = frag_start_idx + connect_idx - 1
-
-        #     # Add bond (1-based indices)
-        #     template.OBMol.AddBond(anchor_idx, connect_idx_in_merged, 1)  # 1 = single bond
-
-        # # --------------------------------------------------
-        # # 5. Clean up: get rid of dummies * attached to ligand(s)
-        # # --------------------------------------------------
-        # for atom in template:
-        #     print (f"New molecule Atom idx: {atom.idx}, atomic num: {atom.OBAtom.GetAtomicNum()}")
-        #     if atom.OBAtom.GetAtomicNum() == 0:  # *
-        #         print (f"Found leftover * at index {atom.idx}, marking for deletion")
-        #         template.OBMol.DeleteAtom(atom.OBAtom)
-    
-        # # --------------------------------------------------
-        # # 6. Generate 3D and optimize
-        # # --------------------------------------------------
-        # template.make3D(forcefield=force_field, 
-        #                 steps=force_field_steps)
-
-        # # --------------------------------------------------
-        # # 7. Save
-        # # --------------------------------------------------
-        # template.write("sdf", output_sdf, overwrite=True)
-        # print(f"Success! Saved to {output_sdf}")
-    
-        # if skip_count == 4:
-        #     raise ValueError("No ligand is attached to the template because 0 dummy atoms were found.")
-        # TODO unhash till here
-            
-
-
-
 
     # =========================================================================
     # Electronic configuration estimation
