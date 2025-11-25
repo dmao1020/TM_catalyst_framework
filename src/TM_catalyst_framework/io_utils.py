@@ -1,6 +1,49 @@
 # io_util.py
 from pathlib import Path
 import subprocess
+from rdkit import Chem
+import py3Dmol
+
+
+class mol_visual:
+    def visualize_sdf_molecule(filename: str):
+        """
+        Reads an SDF file and displays the 3D molecular structure using py3Dmol.
+
+        Args:
+            sdf_filepath (str): The path to the SDF file.
+        """
+        try:
+            # Read the molecule from the SDF file
+            mol = Chem.MolFromMolFile(filename)
+
+            if mol is None:
+                print(f"Error: Could not read molecule from {filename}. "
+                    "Ensure the file is valid and contains 3D coordinates.")
+                return
+
+            # Convert the RDKit molecule to a MolBlock string in SDF format
+            mol_block = Chem.MolToMolBlock(mol)
+
+            # Create a py3Dmol viewer
+            view = py3Dmol.view(width=600, height=400)
+
+            # Add the molecule to the viewer
+            view.addModel(mol_block, "sdf")
+
+            # Set the style for visualization (e.g., sticks, spheres)
+            view.setStyle({'stick': {}})  # Or {'sphere': {}} or {'cartoon': {}} for proteins
+
+            # Zoom to fit the molecule in the view
+            view.zoomTo()
+
+            # Display the viewer
+            view.show()
+
+        except FileNotFoundError:
+            print(f"Error: SDF file not found at {filename}")
+        except Exception as e:
+            print(f"An error occurred: {e}")
 
 class ORCA:
     def __init__(self, orca_path: str = "orca"):

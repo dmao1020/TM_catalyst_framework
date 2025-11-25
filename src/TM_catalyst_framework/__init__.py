@@ -19,7 +19,7 @@ __email__ = "your_email@example.com"
 from .ligands import Ligand
 from .metal_center import MetalCenter
 from .complex import Complex
-from .io_utils import ORCA
+from .io_utils import ORCA, mol_visual
 
 # Optional: define what shows up under *
-__all__ = ["Ligand", "MetalCenter", "ComplexBuilder", "ORCA"]
+__all__ = ["Ligand", "MetalCenter", "ComplexBuilder", "ORCA", "mol_visual"]
