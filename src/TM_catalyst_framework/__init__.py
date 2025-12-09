@@ -17,9 +17,18 @@ __email__ = "your_email@example.com"
 
 # Re-export key classes for convenience
 from .ligands import Ligand
-from .metal_center import MetalCenter
+from .metal_template import Template
 from .complex import Complex
+from .GeoOpt import GeoOpt
 from .io_utils import ORCA, mol_visual
+from .QChem import QChem
 
 # Optional: define what shows up under *
-__all__ = ["Ligand", "MetalCenter", "ComplexBuilder", "ORCA", "mol_visual"]
+__all__ = ["Ligand", 
+           "Template", 
+           "ComplexB"
+           "uilder", 
+           "GeoOpt", 
+           "QChem", 
+           "ORCA", 
+           "mol_visual"]

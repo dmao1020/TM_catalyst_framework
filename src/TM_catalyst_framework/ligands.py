@@ -14,8 +14,31 @@ import numpy as np
 
 import itertools
 from itertools import product
+from rdkit import Chem
+from rdkit.Chem.Draw import MolToImage, MolDraw2DCairo
+from PIL import Image
+from io import BytesIO
 
+from rdkit import Chem
+from rdkit.Chem import AllChem
+from rdkit.Chem.Draw import IPythonConsole
+from rdkit.Chem import rdmolops
+from rdkit.Chem.MolStandardize import rdMolStandardize
 
+element_dict = {
+    'H': 1, 'He': 2, 'Li': 3, 'Be': 4, 'B': 5, 'C': 6, 'N': 7, 'O': 8, 'F': 9, 'Ne': 10,
+    'Na': 11, 'Mg': 12, 'Al': 13, 'Si': 14, 'P': 15, 'S': 16, 'Cl': 17, 'Ar': 18, 'K': 19, 'Ca': 20,
+    'Sc': 21, 'Ti': 22, 'V': 23, 'Cr': 24, 'Mn': 25, 'Fe': 26, 'Co': 27, 'Ni': 28, 'Cu': 29, 'Zn': 30,
+    'Ga': 31, 'Ge': 32, 'As': 33, 'Se': 34, 'Br': 35, 'Kr': 36, 'Rb': 37, 'Sr': 38, 'Y': 39, 'Zr': 40,
+    'Nb': 41, 'Mo': 42, 'Tc': 43, 'Ru': 44, 'Rh': 45, 'Pd': 46, 'Ag': 47, 'Cd': 48, 'In': 49, 'Sn': 50,
+    'Sb': 51, 'Te': 52, 'I': 53, 'Xe': 54, 'Cs': 55, 'Ba': 56, 'La': 57, 'Ce': 58, 'Pr': 59, 'Nd': 60,
+    'Pm': 61, 'Sm': 62, 'Eu': 63, 'Gd': 64, 'Tb': 65, 'Dy': 66, 'Ho': 67, 'Er': 68, 'Tm': 69, 'Yb': 70,
+    'Lu': 71, 'Hf': 72, 'Ta': 73, 'W': 74, 'Re': 75, 'Os': 76, 'Ir': 77, 'Pt': 78, 'Au': 79, 'Hg': 80,
+    'Tl': 81, 'Pb': 82, 'Bi': 83, 'Po': 84, 'At': 85, 'Rn': 86, 'Fr': 87, 'Ra': 88, 'Ac': 89, 'Th': 90,
+    'Pa': 91, 'U': 92, 'Np': 93, 'Pu': 94, 'Am': 95, 'Cm': 96, 'Bk': 97, 'Cf': 98, 'Es': 99, 'Fm': 100,
+    'Md': 101, 'No': 102, 'Lr': 103, 'Rf': 104, 'Db': 105, 'Sg': 106, 'Bh': 107, 'Hs': 108, 'Mt': 109, 'Ds': 110,
+    'Rg': 111, 'Cn': 112, 'Nh': 113, 'Fl': 114, 'Mc': 115, 'Lv': 116, 'Ts': 117, 'Og': 118
+}
 def permutations_with_repetition(iterable, length):
     """
     Generates all permutations with repetition of a given iterable.
@@ -56,118 +79,181 @@ def octahedral_N1N2_dictionary(iso_num):
         print (f"N1N2_map:{N1N2_map}")
     return N1N2_map
 
+def show_mol(d2d,mol,legend='',highlightAtoms=[]):
+    d2d.DrawMolecule(mol,legend=legend, highlightAtoms=highlightAtoms)
+    d2d.FinishDrawing()
+    bio = BytesIO(d2d.GetDrawingText())
+    return Image.open(bio)
+
 class Ligand:
     def __init__(
             self, 
-            name, 
-            smiles, 
-            charge = 0, 
-            denticity=1, 
-            donor_atoms=None
+            smiles: str = "C", 
+            charge: int = 1,
+            denticity: int = 1, 
+            mol_3D = True
             ):
-        self.name = name
         self.smiles = smiles
         self.charge = charge
         self.denticity = denticity
-        self.donor_atoms = donor_atoms or []
-        self.mol = Chem.MolFromSmiles(smiles)
-        self.mol_3D = None
-        self.obmol = None
-        self.mol_3D_xyz = None
-
-        if self.mol is None:
-            raise ValueError(f"Invalid SMILES for ligand: {smiles}")
-
-    def generate_3D(self, ff="UFF", maxIters=500):
-        """Generate a 3D conformer and optimize it with RDKit."""
-        mol = Chem.AddHs(self.mol)
-        AllChem.EmbedMolecule(mol)
-        AllChem.UFFOptimizeMolecule(mol, maxIters=maxIters)
-        self.mol_3D = mol
-        return mol
+        self.ligand = pybel.readstring("smi", self.smiles)
+        self.mol_3D = mol_3D
+        if self.mol_3D == True:
+            self.ligand.make3D()
+        # self.obmol = None
+        # self.mol_3D_xyz = None
+        
+    # def find_ligand_attachement_point(self, donor_atoms):
+    #     attach_atom = None
+    #     connect_atom = None
+        
+    #     if donor_atoms not in list(element_dict.keys()):
+    #         raise ValueError(f"The connecting atom label not recognized; connect_label provided is: {donor_atoms}")
+        
+    #     connect_atomic_num = element_dict[donor_atoms]
+    #     for atom in self.ligand:
+    #         # find dummy atom with label *, which has atomic number == 0
+    #         if atom.OBAtom.GetAtomicNum() == 0:
+    #             # find the atom that is bonded to the dummy atom
+    #             for nbr in pybel.ob.OBAtomAtomIter(atom.OBAtom):
+    #                 break
+    #             if nbr is None:
+    #                 raise ValueError("Fragment * has no neighbor")
+    #             # check if the connect atom matches connect_label
+    #             # i.e. O, N1 or N2
+    #             # skip to the next * atom if the nbr doesn't match the connect atomic number
+    #             if nbr.GetAtomicNum() != connect_atomic_num:
+    #                 continue
+    #             else:
+    #                 attach_atom = atom
+    #                 connect_atom = nbr
+    #                 break
+    #     if attach_atom is None:
+    #         raise ValueError("No * in fragment")
+    #     if connect_atom is None:
+    #         raise ValueError("Fragment * has no matching neighbor")  
+    #     return attach_atom, connect_atom
     
-    import numpy as np
+    def add_num_to_dummy(self):
+        dummy_idx_ls = []
+        
+        for idx, character in enumerate(self.smiles):
+            if character == "*":
+                dummy_idx_ls.append(idx+1)
+        self.denticity = int(len(dummy_idx_ls))
+        if self.denticity == 1:
+            return self.smiles
+        elif self.denticity == 2:
+            smiles_draw = self.smiles[:dummy_idx_ls[0]] + f":1" + self.smiles[dummy_idx_ls[0]:dummy_idx_ls[1]] 
+            smiles_draw = smiles_draw + f":2" + self.smiles[dummy_idx_ls[1]:]
+            return smiles_draw
+        else:            
+            smiles_draw = self.smiles[:dummy_idx_ls[0]] + f":1"
+            
+            for idx, dummy_idx in enumerate(dummy_idx_ls[1:]):
+                print (f"idx: {idx}")
+                print (f"dummy_idx: {dummy_idx}")
+                smiles_draw += self.smiles[dummy_idx_ls[idx]:dummy_idx] + f":{idx+2}"
+            smiles_draw += self.smiles[dummy_idx_ls[-1]:]
+            return smiles_draw
+            
 
-    def attach_to_site(self, metal_mol, metal_idx, donor_coords, bond_type=Chem.BondType.DATIVE):
-        """
-        Align this ligand so that its donor atom sits at the specified coordinate,
-        then merge it into the metal complex molecule.
+    def draw_ligand(self):
+        for idx, character in enumerate(self.smiles):
+            if character == "*":
+                if self.smiles[idx+1] == ":":
+                    draw_smiles = self.smiles
+                else:
+                    draw_smiles = self.add_num_to_dummy()
+        if self.denticity > 0:
+            if self.denticity == 1:
+                mol = Chem.MolFromSmiles(draw_smiles, sanitize = False)
+            else:
+                print (f"draw_smiles: {draw_smiles}")
+                mol = Chem.MolFromSmiles(draw_smiles, sanitize = False)
+            d2d = MolDraw2DCairo(350,300)
+            return show_mol(d2d, mol)
+            
 
-        Parameters
-        ----------
-        metal_mol : rdkit.Chem.Mol
-            The molecule containing the metal center.
-        metal_idx : int
-            The atom index of the metal in that molecule.
-        donor_coords : tuple of float
-            (x, y, z) coordinates where the donor atom should be placed.
-        bond_type : rdkit.Chem.BondType
-            Type of bond connecting ligand to metal.
-        """
+        # Draw the ureate ligand
+        # Chem.MolFromSmiles(ligand_marked, sanitize = False)
 
-        if self.mol_3D is None:
-            self.generate_3D()
+    def attach_R_group(self, 
+                       core_smiles: str,
+                       R_smiles_ls: list,
+                       return_smiles: bool = True
+                       ):
+        
+        full_smiles = core_smiles
+        for idx, sub_str_i in enumerate(R_smiles_ls):
+            full_smiles += f".{sub_str_i}"
+        print (full_smiles)
+        
+        full_mol = Chem.MolFromSmiles(full_smiles, sanitize=False)
+        
+        self.ligand = Chem.molzip(full_mol)
+        if return_smiles == True:
+            return Chem.MolToSmiles(self.ligand)
+             
+    
+    def find_ligand_attachement_point(self, donor_atoms_idx):
+        
+        attach_atom = None
+        connect_atom = None
+        
+        # if donor_atoms not in list(element_dict.keys()):
+        #     raise ValueError(f"The connecting atom label not recognized; connect_label provided is: {donor_atoms}")
+        target_dummy_count = 0
 
-        # --- Find donor atom (first matching atom in donor_atoms list) ---
-        conf = self.mol_3D.GetConformer()
-        donor_idx = None
-        for atom in self.mol_3D.GetAtoms():
-            if atom.GetSymbol() in self.donor_atoms:
-                donor_idx = atom.GetIdx()
-                break
-        if donor_idx is None:
-            raise ValueError(f"No donor atom found in ligand {self.name}")
-
-        # --- Compute translation vector ---
-        donor_pos = np.array(conf.GetAtomPosition(donor_idx))
-        donor_coords = np.array(donor_coords)
-        translation = donor_coords - donor_pos
-
-        # --- Apply translation to all atoms ---
-        for i in range(self.mol_3D.GetNumAtoms()):
-            pos = np.array(conf.GetAtomPosition(i))
-            new_pos = pos + translation
-            conf.SetAtomPosition(i, tuple(new_pos))
-
-        # --- Merge ligand into metal_mol ---
-        combined = Chem.CombineMols(metal_mol, self.mol_3D)
-        editable = Chem.EditableMol(combined)
-
-        # Metal atom index remains metal_idx
-        # Ligand atoms are offset by number of atoms in metal_mol
-        offset = metal_mol.GetNumAtoms()
-        new_donor_idx = donor_idx + offset
-
-        # Add the M–L bond
-        editable.AddBond(metal_idx, new_donor_idx, bond_type)
-
-        merged_mol = editable.GetMol()
-        return merged_mol
-
-
-    def optimize_openbabel(self, method="MMFF94", steps=250):
-        """
-        Optimize ligand geometry using Open Babel force fields.
-        Uses pybel.readstring to avoid file-based readfile issues.
-        """
-        if self.mol_3D is None:
-            self.generate_3D()
-
-        # Convert RDKit Mol to MolBlock string
-        molblock_str = Chem.MolToMolBlock(self.mol_3D)
-
-        # Create a Pybel molecule from MolBlock string
-        obmol = pybel.readstring("mol", molblock_str)
-
-        # Perform force-field optimization
-        obmol.localopt(forcefield=method, steps=steps)
-
-        # Store the optimized molecule and XYZ string
-        self.obmol = obmol
-        self.mol_3D_xyz = obmol.write("xyz")
-
-        return obmol
-
+        for idx, character in enumerate(self.smiles):
+            if character == "*":
+                print (character)
+                if self.smiles[idx+1] == ":":
+                    smiles = self.smiles
+                else:
+                    smiles = self.add_num_to_dummy()
+        print (f"smiles:{smiles}")
+        print (f"donor_atoms_idx: {donor_atoms_idx}")
+        for idx, character in enumerate(smiles):
+            if character == "*":
+                print (character)
+                dummy_idx = int(smiles[idx+2])
+                # print (f"dummy_idx: {dummy_idx}")
+                if dummy_idx == donor_atoms_idx:
+                    # print (f"dummy_idx: {dummy_idx}")
+                    break
+                else:
+                    target_dummy_count += 1
+        
+        print (f"target_dummy_count: {target_dummy_count}")
+        dummy_count = 0
+        for atom in self.ligand:
+            # find dummy atom with label *, which has atomic number == 0
+            if atom.OBAtom.GetAtomicNum() == 0:
+                # find the atom that is bonded to the dummy atom
+                for nbr in pybel.ob.OBAtomAtomIter(atom.OBAtom):
+                    break
+                if nbr is None:
+                    raise ValueError("Fragment * has no neighbor")
+                # check if the connect atom matches connect_label
+                # i.e. O, N1 or N2
+                # skip to the next * atom if the nbr doesn't match the connect atomic number
+                if dummy_count == target_dummy_count:
+                    attach_atom = atom
+                    connect_atom = nbr
+                    break
+                else:
+                    dummy_count += 1
+        if attach_atom is None:
+            raise ValueError("No * in fragment")
+        if connect_atom is None:
+            raise ValueError("Fragment * has no matching neighbor")  
+        return attach_atom, connect_atom
+    
+    # def add_substituients(self,
+    #                       fragment_smiles_dict: dict):
+        
+    
     def save_xyz(self, filename=None):
         """Save ligand structure in XYZ format."""
         if self.mol_3D_xyz is None:

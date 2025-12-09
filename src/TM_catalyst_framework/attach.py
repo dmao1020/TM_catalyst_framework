@@ -2,7 +2,7 @@
 from rdkit import Chem
 from rdkit.Chem import rdMolTransforms
 import numpy as np
-from TM_catalyst_framework.align_helpers import get_conf_positions, set_conf_positions, rotation_matrix_align_vectors
+from TM_catalyst_framework.GeoOpt import get_conf_positions, set_conf_positions, rotation_matrix_align_vectors
 
 def attach_ligand_to_site(metal_mol, metal_idx, ligand_rdkit_mol, donor_atom_idx_in_ligand, donor_site_coord, bond_type=Chem.BondType.DATIVE, align=True):
     """
