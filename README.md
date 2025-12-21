@@ -13,3 +13,12 @@ A Python-based framework for constructing and automating Titanium Ureate catalys
 git clone https://github.com/dmao1020/TM_catalyst_framework
 cd TM_catalyst_framework
 pip install -e .
+```
+
+## Troubleshooting
+A common installation issue arises from the Open Babel dependency, particularly when installing via pip.
+The recommended solution is to install Open Babel using conda-forge:
+```bash
+conda install -c conda-forge openbabel
+```
+After installing Open Babel, reinstall the package if necessary following the instructions above.
