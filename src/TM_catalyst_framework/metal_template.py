@@ -14,6 +14,8 @@ from rdkit import Chem
 from importlib import resources
 
 from openbabel import pybel
+from openbabel import openbabel as ob
+
 element_dict = {
     'H': 1, 'He': 2, 'Li': 3, 'Be': 4, 'B': 5, 'C': 6, 'N': 7, 'O': 8, 'F': 9, 'Ne': 10,
     'Na': 11, 'Mg': 12, 'Al': 13, 'Si': 14, 'P': 15, 'S': 16, 'Cl': 17, 'Ar': 18, 'K': 19, 'Ca': 20,
@@ -40,6 +42,71 @@ class Template:
 
     def template_dir(self):
         return self.template_dir
+    
+    def add_template(self,
+                     template = None,
+                     template_name: str = "custom_template", 
+                     template_path: str = "TM_catalyst_framework.template"):
+        """Add a new template to the template directory.
+        
+        Parameters
+        ----------
+        template : Chem.Mol or pybel.Molecule or SDF file path
+            The molecule object representing the template.
+        template_name : str
+            The name to save the template as.
+        template_path : str
+            The path to save the template file.
+        Raises
+        ------
+        NotImplementedError 
+            This function is not yet implemented. # TODO change this after implementation
+        """
+
+        # Check if template is provided
+        if template is None:
+            raise ValueError("Please provide a valid template molecule or SDF file path.")
+        elif isinstance(template, str) and os.path.isfile(template):
+            # Check if template is sdf file:
+            if not template.lower().endswith('.sdf'):
+                raise ValueError("Template file must be an SDF file.")
+            # If template is a file path, save the SDF file to the template directory
+            sdf_path = resources.files(template_path).joinpath(f"{template_name}.sdf").__fspath__()
+            if os.path.exists(sdf_path):
+                print(f"Warning: Overwriting existing template at {sdf_path}")
+                user_input = input("Type 'yes' to confirm overwriting: ")
+                if user_input.lower() == 'yes':
+                    template_file = open(sdf_path, "w")
+                    template_file.write(template)
+                    template_file.close()
+            else:
+                print(f"Saving new template at {sdf_path}")
+                template_file = open(sdf_path, "w")
+                template_file.write(template)
+                template_file.close()
+            
+        elif isinstance(template, Chem.Mol):
+            mol = template
+            raise ValueError("RDkit format not yet implemented.")
+        elif isinstance(template, pybel.Molecule):
+            mol = template
+            raise ValueError("pybel format not yet implemented.")
+        elif isinstance(template, ob.OBMol):
+            conv = ob.OBConversion()
+            conv.SetOutFormat("sdf")
+            sdf_path = resources.files(template_path).joinpath(f"{template_name}.sdf").__fspath__()
+            
+            if os.path.exists(sdf_path):
+                print(f"Warning: Overwriting existing template at {sdf_path}")
+                user_input = input("Type 'yes' to confirm overwriting: ")
+                if user_input.lower() == 'yes':
+                    conv.WriteFile(template, sdf_path)
+            else:
+                print(f"Saving new template at {sdf_path}")
+                conv.WriteFile(template, sdf_path)
+        else:
+            raise ValueError("Invalid template type provided.")
+        
 
     def options(self):
         resource_root = resources.files('TM_catalyst_framework.template')

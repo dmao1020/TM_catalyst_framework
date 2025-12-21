@@ -37,20 +37,20 @@ element_dict = {
 }
 class Mapping:
     def __init__(self,
-                 mapping_dict: dict = {}
+                 attach_scheme: dict = {}
                  ):
-        self.mapping_dict = mapping_dict
+        self.attach_scheme = attach_scheme
     
     def add_monodentate(self,
                    ligand_SMILES: str = "*N(C)C",
                    atom: str = "N",
                    coordination_site: int = 6
                    ):
-        if not self.mapping_dict:
-            self.mapping_dict[1] = [ligand_SMILES, coordination_site]
+        if not self.attach_scheme:
+            self.attach_scheme[1] = [ligand_SMILES, coordination_site]
         else:
-            map_max_keys = max(list(self.mapping_dict.keys()))
-            self.mapping_dict[map_max_keys+1] = [ligand_SMILES, coordination_site]
+            map_max_keys = max(list(self.attach_scheme.keys()))
+            self.attach_scheme[map_max_keys+1] = [ligand_SMILES, coordination_site]
     
     def add_bidentate(self,
                    ligand_SMILES: str = "C/N=C([N](C)(C)[*])/O[*]",
@@ -59,14 +59,14 @@ class Mapping:
                 #    atom2: str = "N",
                    coordination_site_2: int = 3
                    ):
-        if not self.mapping_dict:
-            self.mapping_dict[1] = [ligand_SMILES,
+        if not self.attach_scheme:
+            self.attach_scheme[1] = [ligand_SMILES,
                                     [coordination_site_1,
                                     coordination_site_2]
                                     ]
         else:
-            map_max_keys = max(list(self.mapping_dict.keys()))
-            self.mapping_dict[map_max_keys+1] = [ligand_SMILES,
+            map_max_keys = max(list(self.attach_scheme.keys()))
+            self.attach_scheme[map_max_keys+1] = [ligand_SMILES,
                                                  [coordination_site_1,
                                                  coordination_site_2]
                                                 ]
@@ -76,13 +76,16 @@ class Complex:
                  metal_center: str,
                  force_field: str = "uff",#uff <-- more stable, other options: mmff94
                  force_field_steps: int = 2000,
-                 noble_map: dict = {
+                 placeholder_map: dict = {
                     1:2,# helium at position 1
                     2:10, # neon at position 2
                     3:18, # Argon at position 3
                     4:36, # Kr at position 4
                     5:54, # Xe at position 5
-                    6:86 # Rn at position 6
+                    6:86, # Rn at position 6
+                    7:118  # Og at position 7
+                    #8: 
+                    #9:
                 }
                 #  oxidation_state: int,
                 #  ligands: list[Ligand],
@@ -104,7 +107,7 @@ class Complex:
         self.metal_center = metal_center
         self.force_field = force_field
         self.force_field_steps = force_field_steps
-        self.noble_map= noble_map
+        self.placeholder_map= placeholder_map
         self.charge = None
         self.multiplicity = None
         self.mol3D = None # Placeholder for an RDKit Mol object
@@ -158,14 +161,15 @@ class Complex:
                              force_field_steps = self.force_field_steps,
                              metal_center = self.metal_center)
         if halogen_mapping == True:
-            dummy_atomic_num = self.noble_map[coord_site]
+            dummy_atomic_num = self.placeholder_map[coord_site]
         else:
             dummy_atomic_num = coord_site
         self.complex = mol
         # self.constraint_optimization()
-        ligand = pybel.readstring("smi", ligand_smiles)
-        ligand.make3D()
-
+        # ligand = pybel.readstring("smi", ligand_smiles)
+        # ligand.make3D()
+        ligand_util = Ligand(smiles = ligand_smiles, optimize_3D = True)
+        ligand = ligand_util.ligand
         # count nunmber of dummy 
         dummy_count = 0
         for atom in mol:
@@ -175,6 +179,9 @@ class Complex:
             for dummy_i in range(dummy_count):
                 # Merge fragment into template
                 mol.OBMol += ligand.OBMol
+                constraints = ob.OBFFConstraints()
+                mol, constraints = GeoOpt_util.constraint_metal_opt(mol, constraints)
+                # mol, constraints = GeoOpt_util.constraint_metal_bangle_opt(mol, constraints)    
                 
                 # Find dummy atom representing oxygen on complex template
                 dummy_atom, anchor_atom = self.find_dummy_and_anchor(mol, dummy_atomic_num)
@@ -184,16 +191,17 @@ class Complex:
                 attach_atom = None
                 connect_atom = None
                 for atom in ligand:
+                    # print (f"ligand Atom idx: {atom.idx}, atomic num: {atom.OBAtom.GetAtomicNum()}")
                     # find dummy atom with label *, which has atomic number == 0
                     if atom.OBAtom.GetAtomicNum() == 0:
+                        # print (f"Found fragment attachment point at index {atom.idx}")
                         # find the atom that is bonded to the dummy atom
                         for nbr in pybel.ob.OBAtomAtomIter(atom.OBAtom):
+                            attach_atom = atom
+                            connect_atom = nbr
                             break
                         if nbr is None:
                             raise ValueError("Fragment * has no neighbor")
-                    attach_atom = atom
-                    connect_atom = nbr
-                    break
                 if attach_atom is None:
                     raise ValueError("No * in fragment")
                 if connect_atom is None:
@@ -211,19 +219,19 @@ class Complex:
                     if atom.OBAtom.GetAtomicNum() == 0:  # *
                         # print (f"Found leftover * at index {atom.idx}, marking for deletion")
                         mol.OBMol.DeleteAtom(atom.OBAtom)
-                print (f"Fragment attachment at index {attach_atom.idx}")
+                # print (f"Fragment attachment at index {attach_atom.idx}")
                 # === Freeze atoms attaching the metal center ===
                 constraints = ob.OBFFConstraints()
                 mol, constraints = GeoOpt_util.constraint_metal_opt(mol, constraints)
+                # mol, constraints = GeoOpt_util.constraint_metal_bangle_opt(mol, constraints)
             # --------------------------------------------------
             # Final geometry optimization with FF (no constraints)
             # --------------------------------------------------
             # self.run_opt(mol, constraints)
             self.complex = mol
             return mol
-
         else:
-            raise ValueError("No dummy found!")
+            raise ValueError("No dummy found! {}")
 
     def attach_bidentate_ligand(self,
                                 mol,
@@ -234,19 +242,23 @@ class Complex:
                              force_field_steps = self.force_field_steps,
                              metal_center = self.metal_center)
         # Merge fragment into template
-        print (f"attach_bidentate_ligand function, ligand_smiles = {ligand_smiles}")
-        ligand_util = Ligand(smiles = ligand_smiles)
+        # print (f"attach_bidentate_ligand function, ligand_smiles = {ligand_smiles}")
+        ligand_util = Ligand(smiles = ligand_smiles, optimize_3D = True)
         ligand = ligand_util.ligand
         mol.OBMol += ligand.OBMol
 
+        constraints = ob.OBFFConstraints()
+        mol, constraints = GeoOpt_util.constraint_metal_opt(mol, constraints)
+        # mol, constraints = GeoOpt_util.constraint_metal_bangle_opt(mol, constraints)
+
         # Find dummy atom representing the first dummy atom on complex template
         # print ("dummy_atomic_num_ls[0]:",dummy_atomic_num_ls[0])
-        dummy1_atom, anchor_atom = self.find_dummy_and_anchor(mol, self.noble_map[coordination_info[0]])
+        dummy1_atom, anchor_atom = self.find_dummy_and_anchor(mol, self.placeholder_map[coordination_info[0]])
         
         # print ("anchor_atom:",anchor_atom)
         
         # Find dummy atom representing the second dummy atom on complex template
-        dummy2_atom, anchor_atom = self.find_dummy_and_anchor(mol, self.noble_map[coordination_info[1]])
+        dummy2_atom, anchor_atom = self.find_dummy_and_anchor(mol, self.placeholder_map[coordination_info[1]])
         anchor_atom_idx = anchor_atom.OBAtom.GetIdx()
         ######## Ligand ########
         
@@ -281,22 +293,23 @@ class Complex:
         mol, constraints = GeoOpt_util.constraint_metal_opt(
                                                 mol, 
                                                 constraints)
+        # mol, constraints = GeoOpt_util.constraint_metal_bangle_opt(mol, constraints)
         self.complex = mol
         
         return mol, constraints
 
 
     
-    def add_ligands_wt_geometry(self,
-                    geometry: str = "octahedral",
-                    output_filename: str = "output_test",
-                    output_format: str = "sdf",
-                    template_dir: str = "TM_catalyst_framework.template",
-                    metal_coord_dummy_map: dict = {1: ["C/N=C([N](C)(C)[*])/O[*]",{"O":2, "N":3}],
-                                                   2: ["C/N=C([N](C)(C)[*])/O[*]",{"O":4, "N":5}],
-                                                   3: ["*N(C)C", {"O":1}],
-                                                   4: ["*N(C)C",{"O":6}]
-                                                   }
+    def generate_complex(self,
+                         geometry: str = "octahedral",
+                         output_filename: str = "output_test",
+                         output_format: str = "sdf",
+                         template_dir: str = "TM_catalyst_framework.template",
+                         attach_scheme: dict = {1: ["C/N=C([N](C)(C)[*])/O[*]",{"O":2, "N":3}],
+                                                        2: ["C/N=C([N](C)(C)[*])/O[*]",{"O":4, "N":5}],
+                                                        3: ["*N(C)C", {"O":1}],
+                                                        4: ["*N(C)C",{"O":6}]
+                                                        }
                     ):
         # self.force_field = force_field
         # self.force_field_steps = force_field_steps
@@ -352,21 +365,22 @@ class Complex:
         # --------------------------------------------------
         # 2. Coordinate ligands
         # --------------------------------------------------
-        for ligand_i, ligand_info in metal_coord_dummy_map.items():
+        for ligand_i, ligand_info in attach_scheme.items():
             ligand_smiles, coordination_info = ligand_info
             # print ("ligand_smiles:",ligand_smiles)
             # print ("coordination_dict:",coordination_dict)
             # check denticity
-            print ("coordination_info:", coordination_info)
+            # print ("coordination_info:", coordination_info)
             if isinstance(coordination_info, list):
                 denticity = len(coordination_info)
             else:
                 denticity = 1
-            print ("denticity:",denticity)
+            # print ("denticity:",denticity)
 
             if denticity == 1:#monodentate ligand
                 coord_site = coordination_info
-                print ("coord_site:",coord_site)
+                # print ("coord_site:",coord_site)
+                # print ("ligand_smiles:",ligand_smiles)
                 template = self.attach_monodentate_ligand(
                                         template,
                                          ligand_smiles = ligand_smiles,
@@ -386,13 +400,26 @@ class Complex:
             if atom.OBAtom.GetAtomicNum() == 0:  # *
                 # print (f"Found leftover * at index {atom.idx}, marking for deletion")
                 template.OBMol.DeleteAtom(atom.OBAtom)
-        template, constraints = GeoOpt_util.constraint_metal_opt(template, constraints)
+        # template, constraints = GeoOpt_util.constraint_metal_opt(template, constraints)
                 # template = self.complex
         # --------------------------------------------------
         # 3. Final geometry optimization with FF (no constraints)
         # --------------------------------------------------
+        # constraints = ob.OBFFConstraints()
+        # template, constraints = GeoOpt_util.constraint_metal_opt(template, constraints) #TODO unhash if doesn't work
+        # GeoOpt_util = GeoOpt(force_field = self.force_field,
+        #                      force_field_steps = 50000,#self.force_field_steps,
+        #                      metal_center = self.metal_center)
+        GeoOpt_util = GeoOpt(force_field = self.force_field,
+                             force_field_steps = 10000,
+                             metal_center = self.metal_center)
+        constraints = ob.OBFFConstraints()
+        template, constraints = GeoOpt_util.constraint_metal_opt(template, constraints)
+        # template, constraints = GeoOpt_util.constraint_metal_bangle_opt(template, constraints)
         constraints.Clear()
         GeoOpt_util.run_opt(template, constraints)
+        self.ff_energy = GeoOpt_util.ff_energy
+        # print ("Final optimization energy (kcal/mol):", self.ff_energy)
         # --------------------------------------------------
         # 4. Save
         # --------------------------------------------------
@@ -406,6 +433,7 @@ class Complex:
     
         if skip_count == 4:
             raise ValueError("No ligand is attached to the template because 0 dummy atoms were found.")
+        
     def add_fragments(self,
                       template_sdf: str,
                       fragment_smiles_dict: dict,
@@ -515,7 +543,7 @@ class Complex:
                         if atom.OBAtom.GetAtomicNum() == 0:  # *
                             # print (f"Found leftover * at index {atom.idx}, marking for deletion")
                             template.OBMol.DeleteAtom(atom.OBAtom)
-                    print (f"Fragment attachment at index {attach_atom.idx}")
+                    # print (f"Fragment attachment at index {attach_atom.idx}")
                     # === Freeze atoms attaching the metal center ===
                     
                     constraints.Clear()
@@ -843,7 +871,7 @@ class Complex:
         #     # 2b. Check if template contains dummy atom
         #     # --------------------------------------------------
         #     for dummy_atom_label, dummy_atomic_num in metal_coord_dummy_map.items():
-        #         dummy_atom, anchor_atom = self.find_dummy_and_anchor(template, noble_map[dummy_atomic_num])
+        #         dummy_atom, anchor_atom = self.find_dummy_and_anchor(template, placeholder_map[dummy_atomic_num])
         #         # The template doesn't contain the dummy atom, skip and find the next one
         #         if dummy_atom == None:
         #             skip_count += 1
@@ -860,8 +888,8 @@ class Complex:
         #                 # 2b.1. Coordinate bidentate ligand
         #                 # --------------------------------------------------
         #                 print (f"Monodentate ligand N{i}O{i}")
-        #                 dummyO_atomic_num = noble_map[metal_coord_dummy_map["O%s"%(i)]]
-        #                 dummyN_atomic_num = noble_map[metal_coord_dummy_map["N%s"%(i)]]
+        #                 dummyO_atomic_num = placeholder_map[metal_coord_dummy_map["O%s"%(i)]]
+        #                 dummyN_atomic_num = placeholder_map[metal_coord_dummy_map["N%s"%(i)]]
         #                 constraints, template = self.attach_bidentate_ligand(
         #                                             constraints, 
         #                                             template,
@@ -879,7 +907,7 @@ class Complex:
 
         #                 # Find F dummy atom on complex template
         #                 dummy_atomic_num = metal_coord_dummy_map[dummy_O_label]
-        #                 dummy_O_atom, anchor_atom = self.find_dummy_and_anchor(template, noble_map[dummy_atomic_num])
+        #                 dummy_O_atom, anchor_atom = self.find_dummy_and_anchor(template, placeholder_map[dummy_atomic_num])
                         
         #                 ######## Ligand ########
         #                 # find O dummy
@@ -1402,7 +1430,7 @@ class Complex:
 #                                   halogen_mapping = False,
 #                                   ):
 #         if halogen_mapping == True:
-#             noble_map= {
+#             placeholder_map= {
 #                     1:2,# helium at position 1
 #                     2:10, # neon at position 2
 #                     3:18, # Argon at position 3
@@ -1410,7 +1438,7 @@ class Complex:
 #                     5:54, # Xe at position 5
 #                     6:86 # Rn at position 6
 #                 }
-#             dummy_atomic_num = noble_map[dummy_atomic_num_]
+#             dummy_atomic_num = placeholder_map[dummy_atomic_num_]
             
 #         else:
 #             dummy_atomic_num = dummy_atomic_num_
@@ -1725,7 +1753,7 @@ class Complex:
 #         Returns:
 #             _type_: _description_
 #         """
-#         noble_map= {
+#         placeholder_map= {
 #             1:2,# helium at position 1
 #             2:10, # neon at position 2
 #             3:18, # Argon at position 3
@@ -1735,7 +1763,7 @@ class Complex:
 #         }
 #         connect_N_dict = {}
 #         for coord_num, nitrogen_identity in connect_N_identity_dict.items():
-#             connect_N_dict[noble_map[coord_num]] = nitrogen_identity
+#             connect_N_dict[placeholder_map[coord_num]] = nitrogen_identity
 #         self.connect_N_dict = connect_N_dict
 #         # Dictionary that maps the dummy atoms representing 
 #         # the ligand-coordination postion in the template
@@ -1778,7 +1806,7 @@ class Complex:
 #             # --------------------------------------------------
 #             # 2a.1. Add the first ligand
 #             # --------------------------------------------------
-#             dummyO_atomic_num, dummyN_atomic_num = noble_map[metal_coord_dummy_map["O1"]], noble_map[metal_coord_dummy_map["N1"]]
+#             dummyO_atomic_num, dummyN_atomic_num = placeholder_map[metal_coord_dummy_map["O1"]], placeholder_map[metal_coord_dummy_map["N1"]]
 #             constraints, template = self.attach_bidentate_ligand(constraints, 
 #                                         template,
 #                                         dummyO_atomic_num, 
@@ -1789,7 +1817,7 @@ class Complex:
 #             # 2a.2. Add the second ligand
 #             # --------------------------------------------------
 #             # Merge fragment into template
-#             dummyO_atomic_num, dummyN_atomic_num = noble_map[metal_coord_dummy_map["O2"]], noble_map[metal_coord_dummy_map["N2"]]
+#             dummyO_atomic_num, dummyN_atomic_num = placeholder_map[metal_coord_dummy_map["O2"]], placeholder_map[metal_coord_dummy_map["N2"]]
 #             constraints, template = self.attach_bidentate_ligand(constraints, 
 #                                         template,
 #                                         dummyO_atomic_num, 
@@ -1802,7 +1830,7 @@ class Complex:
 #             # 2b. Check if template contains dummy atom
 #             # --------------------------------------------------
 #             for dummy_atom_label, dummy_atomic_num in metal_coord_dummy_map.items():
-#                 dummy_atom, anchor_atom = self.find_dummy_and_anchor(template, noble_map[dummy_atomic_num])
+#                 dummy_atom, anchor_atom = self.find_dummy_and_anchor(template, placeholder_map[dummy_atomic_num])
 #                 # The template doesn't contain the dummy atom, skip and find the next one
 #                 if dummy_atom == None:
 #                     skip_count += 1
@@ -1819,8 +1847,8 @@ class Complex:
 #                         # 2b.1. Coordinate bidentate ligand
 #                         # --------------------------------------------------
 #                         print (f"Monodentate ligand N{i}O{i}")
-#                         dummyO_atomic_num = noble_map[metal_coord_dummy_map["O%s"%(i)]]
-#                         dummyN_atomic_num = noble_map[metal_coord_dummy_map["N%s"%(i)]]
+#                         dummyO_atomic_num = placeholder_map[metal_coord_dummy_map["O%s"%(i)]]
+#                         dummyN_atomic_num = placeholder_map[metal_coord_dummy_map["N%s"%(i)]]
 #                         constraints, template = self.attach_bidentate_ligand(
 #                                                     constraints, 
 #                                                     template,
@@ -1838,7 +1866,7 @@ class Complex:
 
 #                         # Find F dummy atom on complex template
 #                         dummy_atomic_num = metal_coord_dummy_map[dummy_O_label]
-#                         dummy_O_atom, anchor_atom = self.find_dummy_and_anchor(template, noble_map[dummy_atomic_num])
+#                         dummy_O_atom, anchor_atom = self.find_dummy_and_anchor(template, placeholder_map[dummy_atomic_num])
                         
 #                         ######## Ligand ########
 #                         # find O dummy

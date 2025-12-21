@@ -18,6 +18,8 @@ from rdkit import Chem
 from rdkit.Chem.Draw import MolToImage, MolDraw2DCairo
 from PIL import Image
 from io import BytesIO
+from TM_catalyst_framework.GeoOpt import GeoOpt#load_ti_template_sdf
+import openbabel.openbabel as ob
 
 from rdkit import Chem
 from rdkit.Chem import AllChem
@@ -91,7 +93,8 @@ class Ligand:
             smiles: str = "C", 
             charge: int = 1,
             denticity: int = 1, 
-            mol_3D = True
+            mol_3D = True,
+            optimize_3D = False
             ):
         self.smiles = smiles
         self.charge = charge
@@ -100,40 +103,17 @@ class Ligand:
         self.mol_3D = mol_3D
         if self.mol_3D == True:
             self.ligand.make3D()
+        if optimize_3D == True:
+            self.optimize_3d_structure()
         # self.obmol = None
         # self.mol_3D_xyz = None
-        
-    # def find_ligand_attachement_point(self, donor_atoms):
-    #     attach_atom = None
-    #     connect_atom = None
-        
-    #     if donor_atoms not in list(element_dict.keys()):
-    #         raise ValueError(f"The connecting atom label not recognized; connect_label provided is: {donor_atoms}")
-        
-    #     connect_atomic_num = element_dict[donor_atoms]
-    #     for atom in self.ligand:
-    #         # find dummy atom with label *, which has atomic number == 0
-    #         if atom.OBAtom.GetAtomicNum() == 0:
-    #             # find the atom that is bonded to the dummy atom
-    #             for nbr in pybel.ob.OBAtomAtomIter(atom.OBAtom):
-    #                 break
-    #             if nbr is None:
-    #                 raise ValueError("Fragment * has no neighbor")
-    #             # check if the connect atom matches connect_label
-    #             # i.e. O, N1 or N2
-    #             # skip to the next * atom if the nbr doesn't match the connect atomic number
-    #             if nbr.GetAtomicNum() != connect_atomic_num:
-    #                 continue
-    #             else:
-    #                 attach_atom = atom
-    #                 connect_atom = nbr
-    #                 break
-    #     if attach_atom is None:
-    #         raise ValueError("No * in fragment")
-    #     if connect_atom is None:
-    #         raise ValueError("Fragment * has no matching neighbor")  
-    #     return attach_atom, connect_atom
-    
+    def optimize_3d_structure(self,
+                           force_field: str = "uff",
+                           force_field_steps: int = 2000,):
+        """Optimize ligand 3D structure using Open Babel's force fields."""
+        GeoOpt_util = GeoOpt(force_field = force_field, force_field_steps = force_field_steps)
+        self.ligand = GeoOpt_util.organic_opt(smiles = self.smiles)
+
     def add_num_to_dummy(self):
         dummy_idx_ls = []
         
@@ -212,8 +192,8 @@ class Ligand:
                     smiles = self.smiles
                 else:
                     smiles = self.add_num_to_dummy()
-        print (f"smiles:{smiles}")
-        print (f"donor_atoms_idx: {donor_atoms_idx}")
+        # print (f"smiles:{smiles}")
+        # print (f"donor_atoms_idx: {donor_atoms_idx}")
         for idx, character in enumerate(smiles):
             if character == "*":
                 print (character)
@@ -225,7 +205,7 @@ class Ligand:
                 else:
                     target_dummy_count += 1
         
-        print (f"target_dummy_count: {target_dummy_count}")
+        # print (f"target_dummy_count: {target_dummy_count}")
         dummy_count = 0
         for atom in self.ligand:
             # find dummy atom with label *, which has atomic number == 0
@@ -234,7 +214,9 @@ class Ligand:
                 for nbr in pybel.ob.OBAtomAtomIter(atom.OBAtom):
                     break
                 if nbr is None:
-                    raise ValueError("Fragment * has no neighbor")
+                    raise ValueError("Fragment"
+                    ""
+                    " * has no neighbor")
                 # check if the connect atom matches connect_label
                 # i.e. O, N1 or N2
                 # skip to the next * atom if the nbr doesn't match the connect atomic number
@@ -252,7 +234,7 @@ class Ligand:
     
     # def add_substituients(self,
     #                       fragment_smiles_dict: dict):
-        
+    
     
     def save_xyz(self, filename=None):
         """Save ligand structure in XYZ format."""

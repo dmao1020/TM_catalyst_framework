@@ -4,6 +4,8 @@ import subprocess
 from rdkit import Chem
 import py3Dmol
 import os
+from openbabel import openbabel as ob
+
 
 class mol_visual:
     def visualize_sdf_molecule(filename: str):
@@ -44,12 +46,18 @@ class mol_visual:
             print(f"Error: SDF file not found at {filename}")
         except Exception as e:
             print(f"An error occurred: {e}")
-    def visualize_mol_molecule(mol):
+    def visualize_mol_molecule(
+            mol,
+            displaystyle = "stick",# stick, sphere, or cartoon
+            label_atoms: bool = False
+                               ):
         """
         Reads an SDF file and displays the 3D molecular structure using py3Dmol.
 
         Args:
             sdf_filepath (str): The path to the SDF file.
+            displaystyle (str): Visualization style ('stick', 'sphere', 'cartoon').
+            label_atoms (bool): Whether to label atoms with their atomic numbers.
         """
         try:
             # Read the molecule from the SDF file
@@ -68,7 +76,7 @@ class mol_visual:
             view.addModel(mol_sdf_string, "sdf")
 
             # Set the style for visualization (e.g., sticks, spheres)
-            view.setStyle({'stick': {}})  # Or {'sphere': {}} or {'cartoon': {}} for proteins
+            view.setStyle({displaystyle: {}})  # Or {'sphere': {}} or {'cartoon': {}} for proteins
 
             # Zoom to fit the molecule in the view
             view.zoomTo()
@@ -76,7 +84,36 @@ class mol_visual:
             # Display the viewer
             view.show()
         except Exception as e:
-            print(f"An error occurred: {e}")
+            print(f"mol provided is invalid:, trying openbabel mol routine...")
+        try: 
+            conv = ob.OBConversion()
+            conv.SetOutFormat("sdf")
+            sdf_data = conv.WriteString(mol)
+            view = py3Dmol.view(width=600, height=400)
+            # Add the molecule to the viewer
+            view.addModel(sdf_data, "sdf")
+            # Set the style for visualization (e.g., sticks, spheres)
+            view.setStyle({displaystyle: {}})  # Or {'sphere': {}} or {'cartoon': {}} for proteins
+            if label_atoms == True:
+                for idx in range(mol.NumAtoms()):
+                    atomic_num = mol.GetAtom(idx+1).GetAtomicNum()
+                    view.addLabel(str(atomic_num), {
+                        'position': {'x': mol.GetAtom(idx+1).x(), 'y': mol.GetAtom(idx+1).y(), 'z': mol.GetAtom(idx+1).z()},
+                        'backgroundColor': 'white',
+                        'fontColor': 'black',
+                        'fontSize': 12
+                    },
+                    # Optional: Select the specific atom for positioning (alternative to manual pos dict)
+                    # { 'serial': atom.GetIdx()+1 } # Atom serial number might be needed depending on the data source
+                    )
+            # Zoom to fit the molecule in the view
+            view.zoomTo()
+            # Display the viewer
+            view.show()
+        except Exception as e:
+            print(f"mol provided is invalid: {e}, try passing in a valid RDKit or OpenBabel mol object")
+            
+
 
 class ORCA:
     def __init__(self, orca_path: str = "orca"):
