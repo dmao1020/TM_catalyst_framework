@@ -70,6 +70,8 @@ class Mapping:
                                                  [coordination_site_1,
                                                  coordination_site_2]
                                                 ]
+    def to_dict(self):
+        return self.attach_scheme
 
 class Complex:
     def __init__(self,
@@ -353,7 +355,6 @@ class Complex:
         
         # template.make3D(forcefield=force_field, steps=force_field_steps)
         skip_count = 0
-        dummy_atom_dict = {}
 
         # --------------------------------------------------
         # 1.2. set up geometry optimization utils
