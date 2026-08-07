@@ -1,6 +1,6 @@
-# Ti-Ureate Framework
+# Transition metal (TM) Framework
 
-A Python-based framework for constructing and automating Titanium Ureate catalyst complexes.
+A Python-based framework for constructing and automating organometallic complexes.
 
 ## Features
 - Define ligands using SMILES or 3D structures
