@@ -1,6 +1,6 @@
-# Transition metal (TM) Framework
+# CatBuilder
 
-A Python-based framework for constructing and automating organometallic complexes.
+A Python-based framework for automated organometallic catalyst construction
 
 ## Features
 - Define ligands using SMILES or 3D structures
